@@ -1,0 +1,21 @@
+{
+  "name": "sproutcore-docs",
+  "description": "SproutCore docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sproutcore/build-tools.git"
+  },
+  "keywords": [
+    "node.js",
+    "sproutcore"
+  ],
+  "author": "Maurits Lamers <maurits@weidestraat.nl>",
+  "main": "./index.js",
+  "dependencies": {
+    "jsdoc": "^3.3.0-beta3"
+  },
+  "version": "0.1.0",
+  "engines": {
+    "node": "0.10.x"
+  }
+}
