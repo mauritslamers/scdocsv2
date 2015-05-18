@@ -206,8 +206,7 @@ library_version_major_minor = ".".join(library_version.split(".")[0:2])
 # we need to read from json
 
 def parseToCix(data):
-  cix = createCixRoot(name="%s_v%s" % (library_name,
-                                       library_version.replace(".", "")),
+  cix = createCixRoot(name="%s" % (library_name),
                       description="%s JavaScript library - version %s" % (
                                        library_name, library_version))
   cixfile = createCixFile(cix, "", lang="JavaScript")
@@ -215,10 +214,25 @@ def parseToCix(data):
                               "%s_v%s" % (library_name,
                                           library_version.replace(".", "")),
                               lang="JavaScript")
+
+  topLevelClasses = {}
+
   for el in data:
-    #top level el is always a class
-    cixscope = createCixClass(cixmodule, el['displayName'])
-    print "creating class %s" % (el['displayName'], )
+    #top level el is always a class or namespace
+    if el['isNamespace'] is True:
+      cixscope = createCixClass(cixmodule, el['displayName'])
+      print "creating namespace %s" % (el['displayName'], )
+      topLevelClasses[el['displayName']] = cixscope
+    else:
+      topLevelC = topLevelClasses[el['displayName'].split(".")[0]]
+      cixscope = createCixClass(topLevelC, el['name'])
+      #also create an object property on the top level, perhaps that solves the issue with second level
+      #cixelement = createCixVariable(topLevelC, el['name'])
+      #cixelement.set("citdl", "Object")
+      print "creating class %s" % (el['displayName'], )
+      if 'augments' in el.keys():
+        cixscope.set("classrefs", " ".join(el['augments']))
+
     methods = el['methods']
     props = el['properties']
     for m in methods:
@@ -228,6 +242,16 @@ def parseToCix(data):
       if 'isPrivate' in m.keys():
         if m['isPrivate'] is True:
           cixelement.set("attributes", "private __hidden__")
+        else :
+          if 'isStatic' in m.keys():
+            if m['isStatic'] is True:
+              if m['name'] == 'create':
+                #cixelement.set("attributes", "__ctor__ __classmethod__")
+                cixelement.set("attributes", "__classmethod__")
+              else:
+                cixelement.set("attributes", "__classmethod__")
+            else :
+              cixelement.set("attributes", "__instancemethod__")
 
       citdl = None
       if 'returns' in m.keys():
@@ -267,16 +291,22 @@ def parseToCix(data):
 
     for p in props:
       cixelement = createCixVariable(cixscope, p['name'])
-      if p['overview']:
+      if 'overview' in p.keys():
         setCixDoc(cixelement, p['overview'], parse=True) #not sure whether it needs to be parsed, and what that parsing is
-      if p['isPrivate'] is not None:
-        cixelement.set("attributes", "private __hidden__")
-      citdl = standardizeJSType(p['type'])
+      if 'isPrivate' in p.keys():
+        if p['isPrivate'] is True:
+          cixelement.set("attributes", "private __hidden__")
+      citdl = None
+      if 'propertyType' in p.keys():
+        citdl = standardizeJSType(p['propertyType']['names'][0])
       if citdl:
           if citdl in ("Any", ):
               citdl = None
       if citdl:
         cixelement.set("citdl", citdl)
+      if 'isConstant' in p.keys():
+        if p['isConstant'] is True:
+          cixelement.set("attributes", "__const__")
 
   return cix
 
@@ -320,7 +350,8 @@ if __name__ == '__main__':
                       action="store_true", help="edit the real scc cix file")
     (opts, args) = parser.parse_args()
 
-    cix_filename = "%s_%s.cix" % (library_name.lower(), library_version_major_minor)
+    #cix_filename = "%s_%s.cix" % (library_name.lower(), library_version_major_minor)
+    cix_filename = "sproutcore.cix"
     if opts.update_inline:
         scriptpath = os.path.dirname(sys.argv[0])
         if not scriptpath:

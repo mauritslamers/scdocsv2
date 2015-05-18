@@ -12,7 +12,8 @@
   "author": "Maurits Lamers <maurits@weidestraat.nl>",
   "main": "./index.js",
   "dependencies": {
-    "jsdoc": "^3.3.0-beta3"
+    "jsdoc": "^3.3.0-beta3",
+    "tern": "^0.11.0"
   },
   "version": "0.1.0",
   "engines": {

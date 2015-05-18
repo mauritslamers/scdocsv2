@@ -3,6 +3,8 @@
 //
 //
 //
+//
+
 
 var pathlib = require('path');
 var curDir = process.cwd();
@@ -78,7 +80,7 @@ function processIndividualClassv3(symbol) {
   var meta = symbol.meta;
   var name = symbol.name;
   var longName = symbol.longname;
-
+  var methodNames = [];
   // The actual object is full of unnecessary crap, filter it out
 
   var classObj = {
@@ -88,7 +90,7 @@ function processIndividualClassv3(symbol) {
     objectType: 'symbol',
     filePath: pathlib.join(pathlib.relative(curDir, meta.path), meta.filename),
 
-    isNamespace: !!symbol.namespace,
+    isNamespace: (symbol.kind === 'namespace'),
     isPrivate: (symbol.access === 'private'),
     isStatic: (symbol.scope === 'static'),
 
@@ -105,7 +107,8 @@ function processIndividualClassv3(symbol) {
   };
 
   symbol.methods.forEach(function (m) {
-    //if (m.memberof !== name && m.memberOf !== longName) return;
+    //if (m.memberof !== name && m.memberof !== longName) return;
+    methodNames.push(m.name);
     classObj.methods.push({
       name: m.name,
       displayName: m.longname,
@@ -124,7 +127,8 @@ function processIndividualClassv3(symbol) {
       overview: m.description,
       exceptions: m.exceptions,
       returns: m.returns,
-      params: m.params
+      params: m.params,
+
     })
   });
 
@@ -162,7 +166,8 @@ function processIndividualClassv3(symbol) {
   // }
 
   symbol.properties.forEach(function (p) {
-    if (p.memberof !== name && p.memberOf !== longName) return;
+    if (p.memberof !== name && p.memberof !== longName) return;
+    //if (methodNames.indexOf(p) > -1) return; // don't include methods as properties
     classObj.properties.push({
       name: p.name,
       displayName: p.longname,
@@ -175,13 +180,16 @@ function processIndividualClassv3(symbol) {
       version: p.version,
       deprecated: p.deprecated,
 
-      memberOf: p.memberOf,
-      overview: p.desc,
+      memberOf: p.memberof,
+      overview: p.description,
       defaultValue: p.defaultValue,
       isConstant: (p.kind === 'constant'),
-      isPrivate: (p.access === 'private')
+      isPrivate: (p.access === 'private'),
+      original: p
     })
   });
+
+
 
   // var properties = symbol.properties;
 
@@ -215,26 +223,54 @@ function processIndividualClassv3(symbol) {
   //   });
   // }
 
-  processedSymbolSet.push(classObj);
+  return classObj;
 }
 
-
+util.log("Loading...")
 var Taffy = require('./node_modules/jsdoc/node_modules/taffydb');
 var raw = require('./out/raw.json');
 
 var db = Taffy.taffy(raw);
 
+util.log('starting the parsing, namespaces first');
+
 var members = getMembers(db);
 var classes = members.classes;
 var processedSymbolSet = [];
 
-classes.forEach(function (c) {
-  //c.events = members.events.filter({}  ) // there doesn't seem to be anything in events
-  c.methods = db().filter({ kind: 'function', memberof: c.longname }).get();
-  c.properties = db().filter({ kind: 'member', memberof: c.longname }).get();
-  processIndividualClassv3(c);
-});
+// members.namespaces.filter(function (n) { return !n.memberof; }).forEach(function (n) {
+//   util.log('namespace: ' + n.longname);
+//   n.methods = db().filter({ kind: 'function', memberof: n.longname}).get();
+//   n.properties = db().filter({ kind: 'member', memberof: n.longname}).get();
+//   processIndividualClassv3(n);
+// });
 
+// members.namespaces.filter(function (n) { return !n.memberof; }).forEach(function (n) {
+//   util.log('namespace: ' + n.longname);
+//   n.methods = db().filter({ kind: 'function', memberof: n.longname}).get();
+//   n.properties = db().filter({ kind: 'member', memberof: n.longname}).get();
+//   n.properties = n.properties.filter(function (p) { // filter out existing classes
+//     return !classes.some(function (c) {
+//       return c.longname === p.longname;
+//     });
+//   });
+//   // n.properties.forEach(function (p) {
+//   //   if (classes.some(function (c) { return c.longname === p.longname; })) {
+//   //     p.type = "Object";
+//   //   }
+//   // });
+//   processedSymbolSet.push(processIndividualClassv3(n));
+// });
+
+// classes.forEach(function (c) {
+//   util.log('class: ' + c.longname);
+//   //c.events = members.events.filter({}  ) // there doesn't seem to be anything in events
+//   c.methods = db().filter({ kind: 'function', memberof: c.longname }).get();
+//   c.properties = db().filter({ kind: 'member', memberof: c.longname }).get();
+//   processedSymbolSet.push(processIndividualClassv3(c));
+// });
+
+// we need to add the main namespaces and their properties and functions
 var ctx = {
     members: members,
     db: db,
@@ -242,6 +278,10 @@ var ctx = {
     symbols: processedSymbolSet
 };
 
-require('fs').writeFileSync('scfixtures.json', JSON.stringify(processedSymbolSet));
 
-//require('repl').start(">>>").context.ctx = ctx;
+//require('fs').writeFileSync('scfixtures.json', JSON.stringify(processedSymbolSet));
+require('repl').start(">>>").context.ctx = ctx;
+
+//
+//
+//
